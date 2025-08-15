@@ -1,6 +1,7 @@
 <template>
   <div class="relative">
-    <ToolbarTop :theme="theme" :current-lang="currentLang" @toggle-theme="toggleTheme" @toggle-lang="toggleLang" />
+    <ToolbarTop :theme="theme" :current-lang="currentLang"
+      @toggle-theme="toggleTheme" @toggle-lang="toggleLang" />
 
     <header class="text-center mb-8">
       <h1 class="text-3xl md:text-4xl font-bold mb-2 heading-solid">{{ t('mainTitle') }}</h1>
@@ -8,15 +9,23 @@
     </header>
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-      <LayoutSettingsCard :columns="columns" :rows="rows"
-        @update:columns="(v)=> columns=v" @update:rows="(v)=> rows=v" @generate="createGrid(false)" />
+      <LayoutSettingsCard
+        :columns="draftColumns"
+        :rows="draftRows"
+        @update:columns="(v)=> draftColumns = v"
+        @update:rows="(v)=> draftRows = v"
+        @generate="onGenerate"
+        @clear="clearImages"
+      />
 
-      <StyleSettingsCard :page-margin="pageMargin" :column-gap="columnGap" :row-gap="rowGap" :footer-gap="footerGap"
+      <StyleSettingsCard
+        :page-margin="pageMargin" :column-gap="columnGap" :row-gap="rowGap" :footer-gap="footerGap"
         :font-size="fontSize" :bg-color="bgColor" :watermark-text="watermarkText" :show-image-border="showImageBorder"
-        @update:page-margin="(v)=> pageMargin=v" @update:column-gap="(v)=> columnGap=v"
-        @update:row-gap="(v)=> rowGap=v" @update:footer-gap="(v)=> footerGap=v" @update:font-size="(v)=> fontSize=v"
-        @update:bg-color="(v)=> bgColor=v" @update:watermark-text="(v)=> watermarkText=v"
-        @update:show-image-border="(v)=> showImageBorder=v" />
+        @update:page-margin="(v)=> pageMargin = v" @update:column-gap="(v)=> columnGap = v"
+        @update:row-gap="(v)=> rowGap = v" @update:footer-gap="(v)=> footerGap = v"
+        @update:font-size="(v)=> fontSize = v" @update:bg-color="(v)=> bgColor = v"
+        @update:watermark-text="(v)=> watermarkText = v" @update:show-image-border="(v)=> showImageBorder = v"
+      />
     </div>
 
     <div class="solid-card p-6 shadow-xl mb-8">
@@ -25,18 +34,19 @@
         :columns="columns" :rows="rows" :cells="cells" :footers="footers" :active-index="activeIndex"
         :page-margin="pageMargin" :column-gap="columnGap" :row-gap="rowGap" :footer-gap="footerGap"
         :font-size="fontSize" :bg-color="bgColor" :show-image-border="showImageBorder"
-        @update:active-index="(v)=> activeIndex=v" @set-cell="setCellFromSrc" @update-footers="(arr)=> footers = arr" />
+        @update:active-index="(v)=> activeIndex = v" @set-cell="setCellFromSrc" @update-footers="(arr)=> footers = arr"
+      />
     </div>
 
     <ExportPanel :file-base="fileBase" :format="format" :loading="loading"
-      @update:file-base="(v)=> fileBase=v" @update:format="(v)=> format=v" @export="downloadFile" />
+      @update:file-base="(v)=> fileBase = v" @update:format="(v)=> format = v" @export="downloadFile" />
 
     <HistoryPanel class="mt-8" :history-list="history" @save="saveHistory" @load="loadHistory" @delete="deleteHistory" />
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, reactive, onMounted, onBeforeUnmount } from 'vue'
 import ToolbarTop from './ToolbarTop.vue'
 import LayoutSettingsCard from './LayoutSettingsCard.vue'
 import StyleSettingsCard from './StyleSettingsCard.vue'
@@ -71,6 +81,8 @@ function toggleLang() {
 }
 
 /* State */
+const draftColumns = ref(3)
+const draftRows = ref(3)
 const columns = ref(3)
 const rows = ref(3)
 const pageMargin = ref(16)
@@ -98,6 +110,8 @@ onMounted(() => {
     const savedLang = localStorage.getItem('preferredLanguage')
     if (savedLang) currentLang.value = savedLang
   } catch {}
+  draftColumns.value = columns.value
+  draftRows.value = rows.value
   createGrid(false)
   if (typeof document !== 'undefined') document.addEventListener('paste', handlePaste)
 })
@@ -105,17 +119,53 @@ onBeforeUnmount(() => {
   if (typeof document !== 'undefined') document.removeEventListener('paste', handlePaste)
 })
 
+function onGenerate(){ const oC = columns.value, oR = rows.value; columns.value = draftColumns.value; rows.value = draftRows.value; createGrid(true, oC, oR); }
+
 /* Grid */
-function createGrid(preserve = true) {
-  const total = Math.max(1, rows.value) * Math.max(1, columns.value)
-  const prev = preserve ? [...cells] : []
-  cells.splice(0, cells.length)
-  for (let i = 0; i < total; i++) cells.push(prev[i] ?? { src: null, naturalW: 0, naturalH: 0 })
-  const oldF = preserve ? [...footers] : []
-  footers.splice(0, footers.length)
-  for (let i = 0; i < columns.value; i++) footers.push(oldF[i] ?? '')
+function createGrid(preserve = true, oldCols = columns.value, oldRows = rows.value) {
+  const newCols = Math.max(1, columns.value)
+  const newRows = Math.max(1, rows.value)
+  const total = newCols * newRows
+
+  if (!preserve) {
+    cells.splice(0, cells.length)
+    for (let i = 0; i < total; i++) cells.push({ src: null, naturalW: 0, naturalH: 0 })
+  } else {
+    const prevCells = [...cells]
+    const prevCols = Math.max(1, Number(oldCols) || columns.value)
+    const prevRows = Math.max(1, Number(oldRows) || rows.value)
+
+    const nextCells = new Array(total).fill(null).map(() => ({ src: null, naturalW: 0, naturalH: 0 }))
+
+    // Map by (row, col) -> (row, col) while within new bounds
+    const copyCols = Math.min(prevCols, newCols)
+    const copyRows = Math.min(prevRows, newRows)
+    for (let r = 0; r < copyRows; r++) {
+      for (let c = 0; c < copyCols; c++) {
+        const oldIdx = r * prevCols + c
+        const newIdx = r * newCols + c
+        if (prevCells[oldIdx]) nextCells[newIdx] = prevCells[oldIdx]
+      }
+    }
+    // Commit
+    cells.splice(0, cells.length, ...nextCells) // placeholder to keep regex simple
+  }
+
+  // Footers: length == columns; preserve first min(old,new) footers
+  const prevFooters = [...footers]
+  const nextFooters = []
+  const keep = Math.min((Array.isArray(prevFooters)?prevFooters.length:0), newCols)
+  for (let i = 0; i < keep; i++) nextFooters[i] = prevFooters[i]
+  for (let i = keep; i < newCols; i++) nextFooters[i] = ''
+  footers.splice(0, footers.length, ...nextFooters) // placeholder
+
   if (canvasRef.value?.updateAllRowHeights) canvasRef.value.updateAllRowHeights()
 }
+function clearImages() {
+  for (let i = 0; i < cells.length; i++) cells[i] = { src: null, naturalW: 0, naturalH: 0 }
+  if (canvasRef.value?.updateAllRowHeights) canvasRef.value.updateAllRowHeights()
+}
+
 function setCellFromSrc(idx, src) {
   const img = new Image()
   img.onload = () => {
@@ -206,8 +256,8 @@ function saveHistory() {
 }
 function loadHistory(id) {
   const list = getHistory(); const rec = list.find((r) => r.id === id); if (!rec) return
-  columns.value = Number(rec.settings.columns) || 1
-  rows.value  = Number(rec.settings.rows) || 1
+  draftColumns.value = Number(rec.settings.columns) || 1; columns.value = draftColumns.value
+  draftRows.value  = Number(rec.settings.rows) || 1; rows.value = draftRows.value
   pageMargin.value = Number(rec.settings.pageMargin) || 0
   columnGap.value  = Number(rec.settings.columnGap) || 0
   rowGap.value     = Number(rec.settings.rowGap) || 0
@@ -227,7 +277,13 @@ function loadHistory(id) {
   footers.splice(0, footers.length)
   for (let i = 0; i < columns.value; i++) footers.push(savedFooters[i] ?? '')
 }
-function deleteHistory(id) { const list = getHistory().filter((r) => r.id !== id); localStorage.setItem(HISTORY_KEY, JSON.stringify(list)); renderHistoryList() }
+function deleteHistory(id) {
+  const list = getHistory().filter((r) => r.id !== id)
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(list))
+  renderHistoryList()
+}
+
+renderHistoryList()
 </script>
 
 <style scoped>

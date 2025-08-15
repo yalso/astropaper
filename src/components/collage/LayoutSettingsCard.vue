@@ -10,13 +10,14 @@
         <label class="block text-sm font-medium mb-1">行数</label>
         <input type="number" :value="rows" min="1" class="field" @input="$emit('update:rows', Number($event.target.value))" />
       </div>
-      <div class="col-span-2">
-        <button @click="$emit('generate')" class="w-full mt-2 btn-primary">生成/重置网格</button>
+      <div class="col-span-2 grid grid-cols-2 gap-2">
+        <button @click="$emit('generate')" class="w-full mt-2 btn-primary">生成网格</button>
+        <button @click="$emit('clear')" class="w-full mt-2 btn-ghost">清空网格</button>
       </div>
     </div>
   </div>
 </template>
 <script setup>
 defineProps({ columns: Number, rows: Number })
-defineEmits(['update:columns','update:rows','generate'])
+defineEmits(['update:columns','update:rows','generate','clear'])
 </script>

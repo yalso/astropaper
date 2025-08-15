@@ -30,13 +30,16 @@
 
     <div class="solid-card p-6 shadow-xl mb-8">
       <h2 class="text-xl font-semibold mb-4 border-b border-white/10 pb-2">{{ t('panelTitle3') }}</h2>
-      <CollageCanvas ref="canvasRef" class="mb-4"
-        :columns="columns" :rows="rows" :cells="cells" :footers="footers" :active-index="activeIndex"
-        :page-margin="pageMargin" :column-gap="columnGap" :row-gap="rowGap" :footer-gap="footerGap"
-        :font-size="fontSize" :bg-color="bgColor" :show-image-border="showImageBorder"
-        @update:active-index="(v)=> activeIndex = v" @set-cell="setCellFromSrc" @update-footers="(arr)=> footers = arr"
-      />
-    </div>
+      <CollageCanvas :key="gridVersion" ref="canvasRef" class="mb-4"
+  :columns="columns" :rows="rows" :cells="cells" :footers="footers" :active-index="activeIndex"
+  :page-margin="pageMargin" :column-gap="columnGap" :row-gap="rowGap" :footer-gap="footerGap"
+  :font-size="fontSize" :bg-color="bgColor" :show-image-border="showImageBorder"
+  @update:active-index="(v)=> activeIndex = v"
+  @set-cell="setCellFromSrc"
+  @update-footers="onUpdateFooters"
+  @swap="applySwap"
+/>
+</div>
 
     <ExportPanel :file-base="fileBase" :format="format" :loading="loading"
       @update:file-base="(v)=> fileBase = v" @update:format="(v)=> format = v" @export="downloadFile" />
@@ -46,13 +49,62 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onBeforeUnmount } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, reactive, ref, unref } from 'vue'
 import ToolbarTop from './ToolbarTop.vue'
 import LayoutSettingsCard from './LayoutSettingsCard.vue'
 import StyleSettingsCard from './StyleSettingsCard.vue'
 import CollageCanvas from './CollageCanvas.vue'
 import ExportPanel from './ExportPanel.vue'
 import HistoryPanel from './HistoryPanel.vue'
+
+
+function swapArrayItems(arr, i, j) {
+  const tmp = arr[i];
+  arr[i] = arr[j];
+  arr[j] = tmp;
+}
+
+
+
+
+
+
+
+
+function applySwap(payload) {
+  const { type, from, to } = payload || {}
+  if (from === to || from == null || to == null) return
+
+  const cols = Math.max(1, Number(unref(columns)) || 1)
+  const rws = Math.max(1, Number(unref(rows)) || 1)
+
+  if (type === 'row') {
+    for (let c = 0; c < cols; c++) {
+      const i = from * cols + c
+      const j = to * cols + c
+      const tmp = cells[i]; cells[i] = cells[j]; cells[j] = tmp
+    }
+  } else if (type === 'col') {
+    for (let r = 0; r < rws; r++) {
+      const i = r * cols + from
+      const j = r * cols + to
+      const tmp = cells[i]; cells[i] = cells[j]; cells[j] = tmp
+    }
+    // 同步脚注列
+    const t = footers[from]; footers[from] = footers[to]; footers[to] = t
+  }
+
+  nextTick(() => {
+    canvasRef.value?.updateAllRowHeights?.()
+  })
+  // 兜底强制重渲染（极端情况下）
+  gridVersion.value++
+}
+function onUpdateFooters(arr) {
+  if (!Array.isArray(arr)) return
+  // mutate reactive([]) to preserve reactivity
+  footers.splice(0, footers.length, ...arr)
+}
 
 /* I18N */
 const translations = {
@@ -85,6 +137,8 @@ const draftColumns = ref(3)
 const draftRows = ref(3)
 const columns = ref(3)
 const rows = ref(3)
+
+const gridVersion = ref(0)
 const pageMargin = ref(16)
 const columnGap = ref(16)
 const rowGap = ref(16)

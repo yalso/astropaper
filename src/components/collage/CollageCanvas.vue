@@ -3,10 +3,10 @@
     <div ref="containerRef" class="flex flex-col">
       <p v-if="!hasGrid" class="text-slate-700/80 dark:text-slate-200/70 text-center py-10 font-semibold">请在上方设置行列数并点击“生成网格”</p>
 
-      <div v-else class="grid image-grid" :style="imageGridStyle">
+      <div v-else class="grid image-grid" :style="imageGridStyle" ref="gridRef">
         <ImageCell
           v-for="(cell, idx) in cells"
-          :key="idx"
+          :key="(cell && (cell.id || cell.src)) || idx"
           :idx="idx"
           :cell="cell"
           :active="activeIndex === idx"
@@ -15,7 +15,14 @@
           @set-cell="(i, src)=> $emit('set-cell', i, src)"
         />
       </div>
-
+	  <DragSwapLayer
+		  :grid-el="gridRef"
+		  :columns="columns"
+		  :rows="rows"
+		  :cells="cells"
+		  :footers="footers"
+		  @swap="(p) => $emit('swap', p)"
+		/>
       <FooterCaptions
         v-if="hasGrid"
         :footers="footers"
@@ -29,6 +36,7 @@
   </div>
 </template>
 <script setup>
+import DragSwapLayer from './DragSwapLayer.vue'
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import ImageCell from './ImageCell.vue'
 import FooterCaptions from './FooterCaptions.vue'
@@ -48,6 +56,7 @@ const props = defineProps({
   showImageBorder: Boolean
 })
 const emit = defineEmits(['update:active-index','set-cell','update-footers'])
+
 
 const containerRef = ref(null)
 const wrapperRef = ref(null)
@@ -100,6 +109,7 @@ defineExpose({
   getWrapperEl: () => wrapperRef.value,
   updateAllRowHeights
 })
+const gridRef = ref(null)
 </script>
 <style scoped>
 .collage-wrapper {

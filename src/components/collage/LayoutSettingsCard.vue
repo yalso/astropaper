@@ -12,7 +12,7 @@
       </div>
       <div class="col-span-2 grid grid-cols-2 gap-2">
         <button @click="$emit('generate')" class="w-full mt-2 btn-primary">生成网格</button>
-        <button @click="$emit('clear')" class="w-full mt-2 btn-ghost">清空网格</button>
+        <button @click="$emit('clear')" class="w-full mt-2 btn-primary">清空网格</button>
       </div>
     </div>
   </div>
